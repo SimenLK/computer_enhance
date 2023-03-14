@@ -6,7 +6,7 @@
 
 #define ArraySize(x) ((sizeof(x)) / (sizeof(x[0])))
 
-char usage[] = {
+const char usage[] = {
     "Usage: sim8086 {asm file}"
 };
 
@@ -22,12 +22,22 @@ size_t open_file(char *file_name, uint8_t *data)
 }
 
 const uint8_t opcodes[] = {
+    0b00000000,     // ADD
     0b10001000,     // MOV: register/memory/from register
     0b11000110,     // Immediate to register/memory
     0b10110000,     // Immediate to register
     0b10100000,     // Memory to accumulator
     0b10100010,     // Accumulator to memory
-    0b00000000,     // ADD
+};
+
+enum Opcode {
+    ADD = 0b00000000,
+
+    MOV_REG_MEM_FROM_REG = 0b10001000,
+    MOV_IMM_TO_REG_MEM = 0b11000110,
+    MOV_IMM_TO_REG = 0b10110000,
+    MOV_MEM_TO_ACC = 0b10100000,
+    MOV_ACC_TO_MEM = 0b10100010,
 };
 
 const uint8_t opcode_masks[] = {
@@ -116,9 +126,9 @@ bool read_dst_bit(uint8_t byte)
     return result;
 }
 
-bool read_is_word(uint8_t byte)
+bool read_is_word(uint8_t byte, uint8_t mask)
 {
-    bool result = (byte & 0b00000001);
+    bool result = (byte & mask);
 
     return result;
 }
@@ -187,33 +197,79 @@ int main(int argc, char **argv)
         // Find opcode
         uint8_t opcode_byte = *instr_ptr++;
         uint32_t op_idx = find_opcode(opcode_byte);
+        Opcode opcode = (Opcode)opcodes[op_idx];
         // TODO(simkir): Test based on which opcode
+        switch (opcode)
+        {
+            case ADD:
+            {
+                fprintf(stderr, "Not implemented\n");
+            } break;
 
-        bool reg_is_dst = read_dst_bit(opcode_byte);
-        bool is_word = read_is_word(opcode_byte);
+            case MOV_REG_MEM_FROM_REG:
+            {
+                bool reg_is_dst = read_dst_bit(opcode_byte);
+                bool is_word = read_is_word(opcode_byte, 0b00000001);
 
-        uint8_t reg_byte = *instr_ptr++;
-        // TODO: Find MOD
-        Mod mod_field = find_mod(reg_byte);
-        // Find REG
-        uint8_t reg_mask = (uint8_t)0b00111000;
-        Register reg_register = find_reg(reg_byte, is_word, reg_mask, 3);
-        // Find R/M
-        uint8_t rm_mask = (uint8_t)0b00000111;
-        Register rm_register = find_reg(reg_byte, is_word, rm_mask, 0);
+                uint8_t reg_byte = *instr_ptr++;
+                Mod mod_field = find_mod(reg_byte);
+                // Find REG
+                uint8_t reg_mask = (uint8_t)0b00111000;
+                Register reg_register = find_reg(reg_byte, is_word, reg_mask, 3);
+                // Find R/M
+                uint8_t rm_mask = (uint8_t)0b00000111;
+                Register rm_register = find_reg(reg_byte, is_word, rm_mask, 0);
 
-        Register dest_register = rm_register;
-        Register source_register = reg_register;
-        if (reg_is_dst) {
-            dest_register = reg_register;
-            source_register = rm_register;
+                Register dest_register = rm_register;
+                Register source_register = reg_register;
+                if (reg_is_dst) {
+                    dest_register = reg_register;
+                    source_register = rm_register;
+                }
+
+                char *opcode_symbol = opcode_symbols[op_idx];
+                printf("%s %s, %s\n",
+                       opcode_symbol,
+                       dest_register.symbol,
+                       source_register.symbol);
+            } break;
+
+            case MOV_IMM_TO_REG_MEM:
+            {
+                fprintf(stderr, "Not implemented\n");
+            } break;
+
+            case MOV_IMM_TO_REG:
+            {
+                int16_t immediate = 0;
+                bool is_word = read_is_word(opcode_byte, 0b00001000);
+                Register reg = find_reg(opcode_byte, is_word, 0b00000111, 0);
+
+                uint8_t data_byte = *instr_ptr++;
+                immediate = (int16_t)data_byte;
+
+                if (is_word) {
+                    uint8_t upper_data = *instr_ptr++;
+                    immediate &= ((uint16_t)upper_data) << 8;
+                }
+
+                char *opcode_symbol = opcode_symbols[op_idx];
+                printf("%s %s, %d\n",
+                       opcode_symbol,
+                       reg.symbol,
+                       immediate);
+            } break;
+
+            case MOV_MEM_TO_ACC:
+            {
+                fprintf(stderr, "Not implemented\n");
+            } break;
+
+            case MOV_ACC_TO_MEM:
+            {
+                fprintf(stderr, "Not implemented\n");
+            } break;
         }
-
-        char *opcode_symbol = opcode_symbols[op_idx];
-        printf("%s %s, %s\n",
-               opcode_symbol,
-               dest_register.symbol,
-               source_register.symbol);
     }
 
     return 0;
